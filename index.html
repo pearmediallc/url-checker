@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Checker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .result-box {
+            transition: all 0.3s ease;
+            opacity: 0;
+        }
+        .result-box.show {
+            opacity: 1;
+        }
+        .check-item {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <h2 class="text-center mb-4">Website Tracking Code Checker</h2>
+                        <div class="mb-4">
+                            <label for="urlInput" class="form-label">Enter Website URL:</label>
+                            <div class="input-group">
+                                <input type="url" class="form-control" id="urlInput" 
+                                       placeholder="https://example.com" required>
+                                <button class="btn btn-primary" onclick="checkURL()">Check</button>
+                            </div>
+                        </div>
+
+                        <div id="loading" class="text-center d-none">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+
+                        <div id="resultBox" class="result-box">
+                            <h5 class="mb-3">Results for: <span id="domainText" class="text-primary"></span></h5>
+                            <div id="scriptResult" class="check-item"></div>
+                            <div id="ctaResult" class="check-item"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function checkURL() {
+            const urlInput = document.getElementById('urlInput');
+            const loading = document.getElementById('loading');
+            const resultBox = document.getElementById('resultBox');
+            const scriptResult = document.getElementById('scriptResult');
+            const ctaResult = document.getElementById('ctaResult');
+            const domainText = document.getElementById('domainText');
+
+            if (!urlInput.value) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            // Reset and show loading
+            resultBox.classList.remove('show');
+            loading.classList.remove('d-none');
+
+            try {
+                // Use cors-anywhere as a proxy to bypass CORS
+                const proxyUrl = 'https://api.allorigins.win/raw?url=';
+                const response = await fetch(proxyUrl + encodeURIComponent(urlInput.value));
+                const html = await response.text();
+
+                // Create a DOM parser
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                // Get domain from URL
+                const domain = new URL(urlInput.value).hostname;
+                domainText.textContent = domain;
+
+                // Check for script tag in head
+                let scriptFound = false;
+                const scripts = doc.querySelectorAll('head script');
+                scripts.forEach(script => {
+                    const src = script.getAttribute('src') || '';
+                    if (src.includes(domain) && src.includes('track.js')) {
+                        scriptFound = true;
+                    }
+                });
+
+                // Check for CTA link
+                let ctaFound = false;
+                const links = doc.querySelectorAll('a');
+                const buttons = doc.querySelectorAll('button');
+                const trackUrl = `https://track.${domain}/click`;
+
+                links.forEach(link => {
+                    const href = link.getAttribute('href') || '';
+                    if (href.includes(trackUrl)) {
+                        ctaFound = true;
+                    }
+                });
+
+                buttons.forEach(button => {
+                    const onclick = button.getAttribute('onclick') || '';
+                    if (onclick.includes(trackUrl)) {
+                        ctaFound = true;
+                    }
+                });
+
+                // Update results
+                scriptResult.className = 'check-item ' + (scriptFound ? 'success' : 'error');
+                scriptResult.innerHTML = scriptFound 
+                    ? '<strong>✓ Tracking Script Found:</strong> The tracking script is properly installed in the head tag.'
+                    : '<strong>✗ Tracking Script Missing:</strong> The required tracking script was not found in the head tag.';
+
+                ctaResult.className = 'check-item ' + (ctaFound ? 'success' : 'error');
+                ctaResult.innerHTML = ctaFound
+                    ? '<strong>✓ CTA Link Found:</strong> The tracking CTA link is properly implemented.'
+                    : '<strong>✗ CTA Link Missing:</strong> The required tracking CTA link was not found.';
+
+                // Show results
+                resultBox.classList.add('show');
+            } catch (error) {
+                alert('Error checking URL: ' + error.message);
+            } finally {
+                loading.classList.add('d-none');
+            }
+        }
+    </script>
+</body>
+</html>
